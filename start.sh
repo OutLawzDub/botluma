@@ -2,6 +2,8 @@
 
 echo "🚀 Démarrage des bots avec PM2..."
 
+cd "$(dirname "$0")"
+
 if [ -f "ecosystem.config.js" ]; then
     pm2 start ecosystem.config.js
 else
