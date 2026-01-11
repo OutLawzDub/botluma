@@ -118,9 +118,40 @@ Chaque bot enverra des messages adaptés à sa personnalité !
 
 ## 🛠️ Scripts disponibles
 
+### Scripts npm
 - `npm start` - Démarre les 3 bots
 - `npm run deploy:commands` - Déploie les commandes pour les 3 bots
 - `npm run dev` - Mode développement avec nodemon (**⚠️ NE PAS UTILISER en production**)
+
+### Scripts PM2 (Recommandé pour la production)
+
+**Installation de PM2 :**
+```bash
+npm install -g pm2
+```
+
+**Première configuration :**
+```bash
+chmod +x *.sh
+./pm2-setup.sh
+```
+
+**Gestion des bots avec PM2 :**
+```bash
+chmod +x *.sh                    # Rendre les scripts exécutables (première fois)
+./start.sh      # Démarrer les bots
+./stop.sh       # Arrêter les bots
+./restart.sh    # Redémarrer les bots
+./logs.sh       # Voir les logs en temps réel
+./status.sh     # Voir l'état des bots
+```
+
+**Avantages de PM2 :**
+- ✅ Redémarrage automatique en cas de crash
+- ✅ Redémarrage au démarrage du serveur
+- ✅ Gestion des logs
+- ✅ Monitoring en temps réel
+- ✅ Pas de réponses en double
 
 ## 🏗️ Structure du projet
 
@@ -174,9 +205,11 @@ Mystérieuse, lucide, introspective, révèle les vérités, questions profondes
 
 ## ⚠️ Important
 
-**Ne PAS utiliser `npm run dev` en production !**
-- `npm run dev` utilise nodemon qui peut créer des instances multiples
-- **Toujours utiliser `npm start`** pour éviter les réponses en double
+**Recommandation pour la production :**
+- ✅ **Utilisez PM2** avec les scripts fournis (`start.sh` / `start.bat`)
+- ✅ PM2 gère automatiquement les redémarrages et évite les doublons
+- ❌ **Ne PAS utiliser `npm run dev`** en production (nodemon peut créer des instances multiples)
+- ⚠️ Si vous utilisez `npm start`, assurez-vous qu'une seule instance tourne
 
 ## 📄 Licence
 
