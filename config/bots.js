@@ -66,6 +66,6 @@ export const BOTS_CONFIG = [
   }
 ];
 
-export const AI_MODEL = 'meta-llama/llama-3.2-3b-instruct:free';
+export const AI_MODEL = process.env.AI_MODEL || 'meta-llama/llama-3.2-3b-instruct:free';
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
