@@ -1,0 +1,7 @@
+{
+  "watch": ["*.js", "commands/**/*.js", "events/**/*.js", "config/**/*.js"],
+  "ext": "js,json",
+  "ignore": ["node_modules/**", ".git/**"],
+  "delay": "1000"
+}
+

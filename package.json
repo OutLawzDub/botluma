@@ -1,0 +1,27 @@
+{
+  "name": "botluma",
+  "version": "1.0.0",
+  "description": "Luma - L'esprit-lune de Lumbria",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "env-cmd node index.js",
+    "dev": "env-cmd nodemon index.js",
+    "deploy:commands": "env-cmd node deploy-commands-all.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "luma"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "env-cmd": "^11.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
