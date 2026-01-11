@@ -1,16 +1,28 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
+import { BOTS_CONFIG } from '../config/bots.js';
+import { botClients } from '../config/clients.js';
 
 const activeIntervals = new Map();
 
 export default {
   data: new SlashCommandBuilder()
     .setName('recurrence')
-    .setDescription('🌙 Configure les messages récurrents de Luma')
+    .setDescription('Configure les messages récurrents pour un bot')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(subcommand =>
       subcommand
         .setName('activer')
-        .setDescription('Active les messages récurrents')
+        .setDescription('Active les messages récurrents pour un bot')
+        .addStringOption(option =>
+          option
+            .setName('bot')
+            .setDescription('Le bot pour lequel configurer')
+            .addChoices(
+              { name: '🌙 LUMA', value: 'LUMA' },
+              { name: '☀️ ELYRA', value: 'ELYRA' },
+              { name: '🌑 VELYRA', value: 'VELYRA' }
+            )
+            .setRequired(true))
         .addChannelOption(option =>
           option
             .setName('salon')
@@ -27,88 +39,140 @@ export default {
         .addStringOption(option =>
           option
             .setName('message')
-            .setDescription('Le message à envoyer (optionnel, sinon message aléatoire de Luma)')
+            .setDescription('Le message à envoyer (optionnel, sinon message aléatoire du bot)')
             .setRequired(false)))
     .addSubcommand(subcommand =>
       subcommand
         .setName('desactiver')
-        .setDescription('Désactive les messages récurrents'))
+        .setDescription('Désactive les messages récurrents pour un bot')
+        .addStringOption(option =>
+          option
+            .setName('bot')
+            .setDescription('Le bot pour lequel désactiver')
+            .addChoices(
+              { name: '🌙 LUMA', value: 'LUMA' },
+              { name: '☀️ ELYRA', value: 'ELYRA' },
+              { name: '🌑 VELYRA', value: 'VELYRA' }
+            )
+            .setRequired(true)))
     .addSubcommand(subcommand =>
       subcommand
         .setName('statut')
-        .setDescription('Affiche la configuration actuelle')),
+        .setDescription('Affiche la configuration actuelle pour un bot')
+        .addStringOption(option =>
+          option
+            .setName('bot')
+            .setDescription('Le bot à vérifier')
+            .addChoices(
+              { name: '🌙 LUMA', value: 'LUMA' },
+              { name: '☀️ ELYRA', value: 'ELYRA' },
+              { name: '🌑 VELYRA', value: 'VELYRA' }
+            )
+            .setRequired(true))),
 
   async execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
+    const selectedBotName = interaction.options.getString('bot');
+    const botConfig = BOTS_CONFIG.find(bot => bot.name === selectedBotName);
+    
+    if (!botConfig) {
+      await interaction.reply({
+        content: '❌ Bot introuvable.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const intervalKey = `${interaction.guildId}-${selectedBotName}`;
 
     if (subcommand === 'activer') {
       const channel = interaction.options.getChannel('salon');
       const intervalMinutes = interaction.options.getInteger('intervalle');
       const customMessage = interaction.options.getString('message');
 
-      if (activeIntervals.has(interaction.guildId)) {
-        clearInterval(activeIntervals.get(interaction.guildId));
+      const targetClient = botClients.get(selectedBotName);
+      if (!targetClient) {
+        await interaction.reply({
+          content: `❌ Le bot ${botConfig.emoji} **${selectedBotName}** n'est pas en ligne.`,
+          ephemeral: true,
+        });
+        return;
       }
 
-      const botMessages = interaction.client.botConfig.getRecurringMessages();
+      if (activeIntervals.has(intervalKey)) {
+        clearInterval(activeIntervals.get(intervalKey));
+      }
+
+      const botMessages = botConfig.getRecurringMessages();
 
       const intervalId = setInterval(async () => {
         try {
+          const channelToSend = await targetClient.channels.fetch(channel.id);
+          if (!channelToSend) return;
+          
           const messageToSend = customMessage || botMessages[Math.floor(Math.random() * botMessages.length)];
-          await channel.send(messageToSend);
-          const botEmoji = interaction.client.botConfig.emoji;
-          const botName = interaction.client.botConfig.name;
-          console.log(`${botEmoji} ${botName}: Message récurrent envoyé dans ${channel.name}`);
+          await channelToSend.send(messageToSend);
+          console.log(`${botConfig.emoji} ${selectedBotName}: Message récurrent envoyé dans ${channelToSend.name}`);
         } catch (error) {
-          console.error('❌ Erreur lors de l\'envoi du message récurrent:', error);
+          console.error(`❌ Erreur lors de l'envoi du message récurrent pour ${selectedBotName}:`, error);
         }
       }, intervalMinutes * 60 * 1000);
 
-      activeIntervals.set(interaction.guildId, intervalId);
+      activeIntervals.set(intervalKey, intervalId);
       
-      interaction.client.recurringMessages.set(interaction.guildId, {
+      if (!interaction.client.recurringMessages) {
+        interaction.client.recurringMessages = new Map();
+      }
+      
+      interaction.client.recurringMessages.set(intervalKey, {
+        botName: selectedBotName,
         channelId: channel.id,
         intervalMinutes,
         customMessage,
         active: true,
       });
 
-      const botName = interaction.client.botConfig.name;
       await interaction.reply({
-        content: `✅ Messages récurrents activés pour ${botName} !\n📍 **Salon:** ${channel}\n⏰ **Intervalle:** ${intervalMinutes} minute(s)\n💬 **Message:** ${customMessage ? 'Personnalisé' : `Messages variés de ${botName}`}`,
+        content: `✅ Messages récurrents activés pour ${botConfig.emoji} **${selectedBotName}** !\n📍 **Salon:** ${channel}\n⏰ **Intervalle:** ${intervalMinutes} minute(s)\n💬 **Message:** ${customMessage ? 'Personnalisé' : `Messages variés de ${selectedBotName}`}`,
         ephemeral: true,
       });
 
     } else if (subcommand === 'desactiver') {
-      if (activeIntervals.has(interaction.guildId)) {
-        clearInterval(activeIntervals.get(interaction.guildId));
-        activeIntervals.delete(interaction.guildId);
-        interaction.client.recurringMessages.delete(interaction.guildId);
+      if (activeIntervals.has(intervalKey)) {
+        clearInterval(activeIntervals.get(intervalKey));
+        activeIntervals.delete(intervalKey);
+        
+        if (interaction.client.recurringMessages) {
+          interaction.client.recurringMessages.delete(intervalKey);
+        }
 
         await interaction.reply({
-          content: '✅ Messages récurrents désactivés !',
+          content: `✅ Messages récurrents désactivés pour ${botConfig.emoji} **${selectedBotName}** !`,
           ephemeral: true,
         });
       } else {
         await interaction.reply({
-          content: 'Aucun message récurrent n\'est actif pour le moment.',
+          content: `Aucun message récurrent n'est actif pour ${botConfig.emoji} **${selectedBotName}** pour le moment.`,
           ephemeral: true,
         });
       }
 
     } else if (subcommand === 'statut') {
-      const config = interaction.client.recurringMessages.get(interaction.guildId);
+      if (!interaction.client.recurringMessages) {
+        interaction.client.recurringMessages = new Map();
+      }
+      
+      const config = interaction.client.recurringMessages.get(intervalKey);
 
       if (!config || !config.active) {
         await interaction.reply({
-          content: 'Aucun message récurrent configuré pour le moment.',
+          content: `Aucun message récurrent configuré pour ${botConfig.emoji} **${selectedBotName}** pour le moment.`,
           ephemeral: true,
         });
       } else {
         const channel = await interaction.guild.channels.fetch(config.channelId);
-        const botName = interaction.client.botConfig.name;
         await interaction.reply({
-          content: `📊 **Configuration actuelle pour ${botName}:**\n📍 **Salon:** ${channel}\n⏰ **Intervalle:** ${config.intervalMinutes} minute(s)\n💬 **Message:** ${config.customMessage ? config.customMessage : `Messages variés de ${botName}`}\n✅ **Statut:** Actif`,
+          content: `📊 **Configuration actuelle pour ${botConfig.emoji} ${selectedBotName}:**\n📍 **Salon:** ${channel}\n⏰ **Intervalle:** ${config.intervalMinutes} minute(s)\n💬 **Message:** ${config.customMessage ? config.customMessage : `Messages variés de ${selectedBotName}`}\n✅ **Statut:** Actif`,
           ephemeral: true,
         });
       }

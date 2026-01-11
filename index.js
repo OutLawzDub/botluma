@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { readdirSync } from 'fs';
 import { BOTS_CONFIG } from './config/bots.js';
+import { botClients } from './config/clients.js';
 
 config();
 
@@ -61,6 +62,8 @@ async function createBot(botConfig) {
   }
 
   await client.login(botConfig.token);
+  
+  botClients.set(botConfig.name, client);
   
   return client;
 }
