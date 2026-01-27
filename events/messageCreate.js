@@ -59,7 +59,8 @@ export default {
       if (!result.success || !result.response) {
         const errorMessage = result.error || 'Erreur inconnue lors de la génération de la réponse';
         console.error('⚠️ Erreur API:', errorMessage);
-        await message.reply(`❌ **Erreur API:** ${errorMessage}`);
+        // En cas d'erreur, le bot répond qu'il est indisponible
+        await message.reply('Désolé, je suis temporairement indisponible. Réessayez plus tard.');
         return;
       }
 
