@@ -23,7 +23,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
           { role: 'system', content: systemPrompt },
           ...messages
         ],
-        max_tokens: 150,
+        max_tokens: 500,
         temperature: 0.95,
       }),
     });
@@ -83,7 +83,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
     }
     
     const choice = data.choices[0];
-    if (!choice || !choice.message || !choice.message.content) {
+    if (!choice || !choice.message) {
       const errorMsg = `Structure de réponse invalide: ${JSON.stringify(choice).substring(0, 200)}`;
       console.error('❌ Erreur OpenRouter:', errorMsg);
       
@@ -96,7 +96,44 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
       return { success: false, response: null, error: errorMsg };
     }
     
-    return { success: true, response: choice.message.content, error: null };
+    // Certains modèles (comme o1) peuvent avoir le texte dans 'reasoning' au lieu de 'content'
+    // Surtout quand finish_reason est "length" (limite de tokens atteinte)
+    let responseText = choice.message.content;
+    
+    // Si content est vide mais reasoning existe, utiliser reasoning
+    if (!responseText || responseText.trim() === '') {
+      if (choice.message.reasoning && choice.message.reasoning.trim() !== '') {
+        responseText = choice.message.reasoning;
+        console.log('⚠️ Utilisation du champ "reasoning" car "content" est vide');
+      }
+    }
+    
+    // Si toujours vide, vérifier le finish_reason pour donner un message d'erreur plus clair
+    if (!responseText || responseText.trim() === '') {
+      const finishReason = choice.finish_reason || 'unknown';
+      let errorMsg = `Réponse vide de l'API`;
+      
+      if (finishReason === 'length') {
+        errorMsg = `Limite de tokens atteinte (max_tokens trop bas). Réponse tronquée.`;
+      } else if (finishReason === 'stop') {
+        errorMsg = `Réponse vide malgré finish_reason=stop`;
+      } else {
+        errorMsg = `Réponse vide (finish_reason: ${finishReason})`;
+      }
+      
+      const errorDetails = `Structure: ${JSON.stringify(choice).substring(0, 300)}`;
+      console.error('❌ Erreur OpenRouter:', errorMsg, errorDetails);
+      
+      if (retries > 0) {
+        console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return generateAIResponse(messages, systemPrompt, retries - 1);
+      }
+      
+      return { success: false, response: null, error: `${errorMsg} - ${errorDetails}` };
+    }
+    
+    return { success: true, response: responseText, error: null };
   } catch (error) {
     const errorMsg = error.message || 'Erreur inconnue lors de la requête API';
     console.error('❌ Erreur OpenRouter:', errorMsg);
