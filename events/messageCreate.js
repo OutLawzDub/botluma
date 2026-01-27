@@ -54,12 +54,16 @@ export default {
 
       const botConfig = client.botConfig;
       const systemPrompt = botConfig.getPrompt();
-      const aiResponse = await generateAIResponse(session.history, systemPrompt);
+      const result = await generateAIResponse(session.history, systemPrompt);
 
-      if (!aiResponse) {
-        console.log('⚠️ Pas de réponse générée, le bot reste silencieux');
+      if (!result.success || !result.response) {
+        const errorMessage = result.error || 'Erreur inconnue lors de la génération de la réponse';
+        console.error('⚠️ Erreur API:', errorMessage);
+        await message.reply(`❌ **Erreur API:** ${errorMessage}`);
         return;
       }
+
+      const aiResponse = result.response;
 
       session.history.push({
         role: 'assistant',
