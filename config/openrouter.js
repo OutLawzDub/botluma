@@ -23,7 +23,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
           { role: 'system', content: systemPrompt },
           ...messages
         ],
-        max_tokens: 500,
+        max_tokens: 200,
         temperature: 0.95,
       }),
     });
