@@ -101,7 +101,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
 
     const responseText = choice.message.content;
 
-    // On n'utilise JAMAIS le champ "reasoning" pour répondre à l'utilisateur.
+    // On utilise UNIQUEMENT le champ "content". On ignore complètement "reasoning".
     // Si "content" est vide, on considère que c'est une erreur côté provider.
     if (!responseText || responseText.trim() === '') {
       const finishReason = choice.finish_reason || 'unknown';
