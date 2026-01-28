@@ -3,11 +3,14 @@ import { AI_MODEL, OPENROUTER_API_URL } from './bots.js';
 
 config();
 
+const BASE_MAX_TOKENS = 300;
+
 /**
  * Demande à l'IA de générer une réponse en réessayant automatiquement si ça plante
  * Retourne { success: boolean, response: string|null, error: string|null }
+ * @param {number} currentMaxTokens - Nombre de tokens max pour cette tentative (augmente de +100 si finish_reason="length")
  */
-export async function generateAIResponse(messages, systemPrompt, retries = 3) {
+export async function generateAIResponse(messages, systemPrompt, retries = 3, currentMaxTokens = BASE_MAX_TOKENS) {
   try {
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
@@ -23,7 +26,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
           { role: 'system', content: systemPrompt },
           ...messages
         ],
-        max_tokens: 300,
+        max_tokens: currentMaxTokens,
         temperature: 0.95,
       }),
     });
@@ -47,7 +50,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
           const waitTime = status === 429 ? 3000 : status === 502 ? 2000 : 1500;
           console.log(`🔄 Nouvelle tentative dans ${waitTime}ms... (${retries} tentatives restantes)`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
-          return generateAIResponse(messages, systemPrompt, retries - 1);
+          return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
         }
       } else if (status === 429) {
         console.error(`❌ Erreur OpenRouter (429): Rate limit`);
@@ -56,7 +59,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
           const waitTime = 3000;
           console.log(`🔄 Nouvelle tentative dans ${waitTime}ms... (${retries} tentatives restantes)`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
-          return generateAIResponse(messages, systemPrompt, retries - 1);
+          return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
         }
       } else {
         console.log(errorData);
@@ -79,7 +82,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
         await new Promise(resolve => setTimeout(resolve, 1500));
-        return generateAIResponse(messages, systemPrompt, retries - 1);
+        return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
       }
       
       return { success: false, response: null, error: errorMsg };
@@ -93,28 +96,42 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
         await new Promise(resolve => setTimeout(resolve, 1500));
-        return generateAIResponse(messages, systemPrompt, retries - 1);
+        return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
       }
       
       return { success: false, response: null, error: errorMsg };
     }
 
     const responseText = choice.message.content;
+    const finishReason = choice.finish_reason || 'unknown';
 
     // On utilise UNIQUEMENT le champ "content". On ignore complètement "reasoning".
     // Si "content" est vide, on considère que c'est une erreur côté provider.
     if (!responseText || responseText.trim() === '') {
-      const finishReason = choice.finish_reason || 'unknown';
       const errorMsg = `Réponse vide de l'API (finish_reason: ${finishReason})`;
       console.error('❌ Erreur OpenRouter:', errorMsg, JSON.stringify(choice).substring(0, 300));
+
+      // Si finish_reason est "length" et qu'on a encore des retries, augmenter max_tokens de +100
+      if (finishReason === 'length' && retries > 0) {
+        const newMaxTokens = currentMaxTokens + 100;
+        console.log(`⚠️ Limite de tokens atteinte. Augmentation max_tokens: ${currentMaxTokens} → ${newMaxTokens}`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return generateAIResponse(messages, systemPrompt, retries - 1, newMaxTokens);
+      }
 
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
         await new Promise(resolve => setTimeout(resolve, 1500));
-        return generateAIResponse(messages, systemPrompt, retries - 1);
+        return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
       }
 
       return { success: false, response: null, error: errorMsg };
+    }
+    
+    // Si finish_reason est "length" mais qu'on a du contenu, on accepte quand même la réponse
+    // mais on peut loguer un avertissement
+    if (finishReason === 'length') {
+      console.log(`⚠️ Réponse tronquée (finish_reason: length) mais contenu présent, acceptée`);
     }
     
     return { success: true, response: responseText, error: null };
@@ -125,7 +142,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
     if (retries > 0) {
       console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return generateAIResponse(messages, systemPrompt, retries - 1);
+      return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
     }
     
     return { success: false, response: null, error: errorMsg };
