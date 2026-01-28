@@ -68,6 +68,9 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
 
     const data = await response.json();
     
+    // Log de la réponse complète de l'API pour debug
+    console.log('📥 Réponse API complète:', JSON.stringify(data, null, 2));
+    
     // Vérifier que la réponse est valide
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
       const errorMsg = `Réponse invalide de l'API: ${JSON.stringify(data).substring(0, 200)}`;
