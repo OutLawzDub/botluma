@@ -95,42 +95,23 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3) {
       
       return { success: false, response: null, error: errorMsg };
     }
-    
-    // Certains modèles (comme o1) peuvent avoir le texte dans 'reasoning' au lieu de 'content'
-    // Surtout quand finish_reason est "length" (limite de tokens atteinte)
-    let responseText = choice.message.content;
-    
-    // Si content est vide mais reasoning existe, utiliser reasoning
-    if (!responseText || responseText.trim() === '') {
-      if (choice.message.reasoning && choice.message.reasoning.trim() !== '') {
-        responseText = choice.message.reasoning;
-        console.log('⚠️ Utilisation du champ "reasoning" car "content" est vide');
-      }
-    }
-    
-    // Si toujours vide, vérifier le finish_reason pour donner un message d'erreur plus clair
+
+    const responseText = choice.message.content;
+
+    // On n'utilise JAMAIS le champ "reasoning" pour répondre à l'utilisateur.
+    // Si "content" est vide, on considère que c'est une erreur côté provider.
     if (!responseText || responseText.trim() === '') {
       const finishReason = choice.finish_reason || 'unknown';
-      let errorMsg = `Réponse vide de l'API`;
-      
-      if (finishReason === 'length') {
-        errorMsg = `Limite de tokens atteinte (max_tokens trop bas). Réponse tronquée.`;
-      } else if (finishReason === 'stop') {
-        errorMsg = `Réponse vide malgré finish_reason=stop`;
-      } else {
-        errorMsg = `Réponse vide (finish_reason: ${finishReason})`;
-      }
-      
-      const errorDetails = `Structure: ${JSON.stringify(choice).substring(0, 300)}`;
-      console.error('❌ Erreur OpenRouter:', errorMsg, errorDetails);
-      
+      const errorMsg = `Réponse vide de l'API (finish_reason: ${finishReason})`;
+      console.error('❌ Erreur OpenRouter:', errorMsg, JSON.stringify(choice).substring(0, 300));
+
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
         await new Promise(resolve => setTimeout(resolve, 1500));
         return generateAIResponse(messages, systemPrompt, retries - 1);
       }
-      
-      return { success: false, response: null, error: `${errorMsg} - ${errorDetails}` };
+
+      return { success: false, response: null, error: errorMsg };
     }
     
     return { success: true, response: responseText, error: null };
