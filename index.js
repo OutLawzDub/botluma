@@ -5,6 +5,7 @@ import { dirname, join } from 'path';
 import { readdirSync } from 'fs';
 import { BOTS_CONFIG } from './config/bots.js';
 import { botClients } from './config/clients.js';
+import { logError } from './utils/logger.js';
 
 config();
 
@@ -12,11 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 process.on('unhandledRejection', (error) => {
-  console.error('❌ Erreur non gérée:', error);
+  logError('Process', 'Unhandled rejection', {}, error);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('❌ Exception non capturée:', error);
+  logError('Process', 'Uncaught exception', {}, error);
 });
 
 /**
@@ -73,7 +74,7 @@ console.log('🚀 Lancement des bots...\n');
 for (const botConfig of BOTS_CONFIG) {
   if (botConfig.token && botConfig.clientId) {
     createBot(botConfig).catch(error => {
-      console.error(`❌ Erreur lors du lancement de ${botConfig.name}:`, error.message);
+      logError('Bootstrap', `Lancement bot ${botConfig.name}`, { bot: botConfig.name }, error);
     });
   } else {
     console.log(`⚠️ ${botConfig.name}: Token ou Client ID manquant dans le .env`);

@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { BOTS_CONFIG } from '../config/bots.js';
 import { botClients } from '../config/clients.js';
+import { logError } from '../utils/logger.js';
 
 const activeIntervals = new Map();
 
@@ -114,7 +115,7 @@ export default {
           await channelToSend.send(messageToSend);
           console.log(`${botConfig.emoji} ${selectedBotName}: Message récurrent envoyé dans ${channelToSend.name}`);
         } catch (error) {
-          console.error(`❌ Erreur lors de l'envoi du message récurrent pour ${selectedBotName}:`, error);
+          logError('Recurrence', 'Envoi message récurrent', { bot: selectedBotName, channelId: channel.id, channelName: channelToSend?.name }, error);
         }
       }, intervalMinutes * 60 * 1000);
 

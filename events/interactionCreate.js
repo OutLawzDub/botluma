@@ -1,3 +1,5 @@
+import { logError } from '../utils/logger.js';
+
 export default {
   name: 'interactionCreate',
   async execute(interaction) {
@@ -12,14 +14,14 @@ export default {
     const command = interaction.client.commands.get(interaction.commandName);
 
     if (!command) {
-      console.error(`❌ Commande ${interaction.commandName} non trouvée.`);
+      logError('Interaction', 'Commande non trouvée', { commandName: interaction.commandName, bot: botName });
       return;
     }
 
     try {
       await command.execute(interaction);
     } catch (error) {
-      console.error(`❌ Erreur lors de l'exécution de ${interaction.commandName}:`, error.message);
+      logError('Interaction', `Exécution ${interaction.commandName}`, { commandName: interaction.commandName, bot: botName, userId: interaction.user?.id }, error);
       
       try {
         if (!interaction.replied && !interaction.deferred) {

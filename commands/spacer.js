@@ -2,6 +2,7 @@ import { SlashCommandBuilder, AttachmentBuilder } from 'discord.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
+import { logError } from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,7 +41,7 @@ export default {
       await interaction.deleteReply();
 
     } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi du spacer:', error);
+      logError('Spacer', 'Envoi spacer', { channelId: interaction.channelId, userId: interaction.user?.id }, error);
       
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({

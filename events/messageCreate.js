@@ -1,4 +1,5 @@
 import { generateAIResponse } from '../config/openrouter.js';
+import { logError } from '../utils/logger.js';
 
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
@@ -16,7 +17,7 @@ export default {
         const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
         isReplyToBot = repliedMessage.author.id === client.user.id;
       } catch (error) {
-        console.error('Erreur lors de la récupération du message référencé:', error);
+        logError('MessageCreate', 'Récupération du message référencé', { messageId: message.reference?.messageId, channelId: message.channelId }, error);
       }
     }
 
@@ -58,7 +59,7 @@ export default {
 
       if (!result.success || !result.response) {
         const errorMessage = result.error || 'Erreur inconnue lors de la génération de la réponse';
-        console.error('⚠️ Erreur API:', errorMessage);
+        logError('MessageCreate', errorMessage, { bot: client.botConfig?.name, userId: message.author?.id, channelId: message.channelId });
         // En cas d'erreur, le bot répond qu'il est indisponible
         await message.reply('Désolé, je suis temporairement indisponible. Réessayez plus tard.');
         return;
@@ -79,7 +80,7 @@ export default {
       console.log(`${client.botConfig.emoji} ${client.botConfig.name}: ${aiResponse.substring(0, 50)}...`);
 
     } catch (error) {
-      console.error('❌ Erreur lors de la génération de la réponse:', error);
+      logError('MessageCreate', error?.message || 'Génération de la réponse', { bot: client.botConfig?.name, userId: message.author?.id, channelId: message.channelId }, error);
     }
   },
 };
