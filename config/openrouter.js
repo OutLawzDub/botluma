@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { AI_MODEL, AI_API_URL } from './bots.js';
+import { AI_MODEL, OPENROUTER_API_URL } from './bots.js';
 import { logError } from '../utils/logger.js';
 
 config();
@@ -7,24 +7,28 @@ config();
 const BASE_MAX_TOKENS = 300;
 
 /**
- * Demande à l'IA locale de générer une réponse (réessais auto si erreur).
+ * Demande à OpenRouter de générer une réponse (réessais auto si erreur).
  * Retourne { success: boolean, response: string|null, error: string|null }
  * @param {number} currentMaxTokens - Nombre de tokens max pour cette tentative (augmente de +100 si finish_reason="length")
  */
 export async function generateAIResponse(messages, systemPrompt, retries = 3, currentMaxTokens = BASE_MAX_TOKENS) {
   try {
-    const response = await fetch(AI_API_URL, {
+    const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'HTTP-Referer': 'https://discord.com',
+        'X-Title': 'Luma Bot - Lumbria',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         model: AI_MODEL,
         messages: [
           { role: 'system', content: systemPrompt },
           ...messages
         ],
-        temperature: 0.95,
-        top_p: 0.95,
         max_tokens: currentMaxTokens,
+        temperature: 0.95,
       }),
     });
 
@@ -41,7 +45,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
       }
       
       if (status === 502 || status === 503 || status === 504 || (status >= 500 && status < 600)) {
-        logError('LLM', `HTTP ${status} - Erreur serveur, réessai`, { status, model: AI_MODEL, retriesLeft: retries - 1, errorBody: String(errorData).substring(0, 300) });
+        logError('OpenRouter', `HTTP ${status} - Provider error - réessai`, { status, model: AI_MODEL, retriesLeft: retries - 1, errorBody: String(errorData).substring(0, 300) });
         
         if (retries > 0) {
           const waitTime = status === 429 ? 3000 : status === 502 ? 2000 : 1500;
@@ -50,7 +54,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
           return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
         }
       } else if (status === 429) {
-        logError('LLM', 'Rate limit (429)', { status: 429, model: AI_MODEL, retriesLeft: retries - 1 });
+        logError('OpenRouter', 'Rate limit (429)', { status: 429, model: AI_MODEL, retriesLeft: retries - 1 });
         
         if (retries > 0) {
           const waitTime = 3000;
@@ -59,7 +63,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
           return generateAIResponse(messages, systemPrompt, retries - 1, currentMaxTokens);
         }
       } else {
-        logError('LLM', `HTTP ${status} - ${errorMessage}`, { status, model: AI_MODEL, rawBody: String(errorData).substring(0, 500) });
+        logError('OpenRouter', `HTTP ${status} - ${errorMessage}`, { status, model: AI_MODEL, rawBody: String(errorData).substring(0, 500) });
       }
       
       return { success: false, response: null, error: errorMessage };
@@ -69,12 +73,12 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
     
     // Log réponse API (résumé en prod)
     const responsePreview = data?.choices?.[0] ? { id: data.id, usage: data.usage, choicesCount: data.choices?.length } : data;
-    console.log(`[${new Date().toISOString()}] 📥 LLM réponse:`, JSON.stringify(responsePreview));
+    console.log(`[${new Date().toISOString()}] 📥 OpenRouter réponse:`, JSON.stringify(responsePreview));
     
     // Vérifier que la réponse est valide
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
       const errorMsg = `Réponse invalide de l'API: ${JSON.stringify(data).substring(0, 200)}`;
-      logError('LLM', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1, rawResponse: JSON.stringify(data).substring(0, 400) });
+      logError('OpenRouter', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1, rawResponse: JSON.stringify(data).substring(0, 400) });
       
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
@@ -88,7 +92,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
     const choice = data.choices[0];
     if (!choice || !choice.message) {
       const errorMsg = `Structure de réponse invalide: ${JSON.stringify(choice).substring(0, 200)}`;
-      logError('LLM', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1, choiceKeys: choice ? Object.keys(choice) : [] });
+      logError('OpenRouter', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1, choiceKeys: choice ? Object.keys(choice) : [] });
       
       if (retries > 0) {
         console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
@@ -106,7 +110,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
     // Si "content" est vide, on considère que c'est une erreur côté provider.
     if (!responseText || responseText.trim() === '') {
       const errorMsg = `Réponse vide (finish_reason: ${finishReason})`;
-      logError('LLM', errorMsg, { model: AI_MODEL, finishReason, retriesLeft: retries - 1, choicePreview: JSON.stringify(choice).substring(0, 300) });
+      logError('OpenRouter', errorMsg, { model: AI_MODEL, finishReason, retriesLeft: retries - 1, choicePreview: JSON.stringify(choice).substring(0, 300) });
 
       // Si finish_reason est "length" et qu'on a encore des retries, augmenter max_tokens de +100
       if (finishReason === 'length' && retries > 0) {
@@ -134,7 +138,7 @@ export async function generateAIResponse(messages, systemPrompt, retries = 3, cu
     return { success: true, response: responseText, error: null };
   } catch (error) {
     const errorMsg = error?.message || 'Erreur inconnue lors de la requête API';
-    logError('LLM', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1 }, error);
+    logError('OpenRouter', errorMsg, { model: AI_MODEL, retriesLeft: retries - 1 }, error);
     
     if (retries > 0) {
       console.log(`🔄 Nouvelle tentative... (${retries} tentatives restantes)`);
